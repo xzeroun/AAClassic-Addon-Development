@@ -551,11 +551,57 @@ return function(deps)
             end
         end
         
-        -- Set the total labor on the main item (tier 0)
+        -- Calculate initial total cost (materials)
+        log("=== CALCULATING INITIAL TOTAL COST ===", "INITIAL_COST")
+        local initialTotalCost = 0
+        
+        -- Sum up all material costs from all items (initially all are craft since buy defaults to false)
+        for i, item in ipairs(recipeData) do
+            local shouldCountCost = true
+            
+            -- Check if this item should be counted (initially no ancestors are "buy")
+            if item.tier > 0 then
+                for checkTier = item.tier - 1, 0, -1 do
+                    local ancestorAtTier = nil
+                    
+                    for parentIndex = i - 1, 1, -1 do
+                        local potentialAncestor = recipeData[parentIndex]
+                        if potentialAncestor.tier == checkTier then
+                            ancestorAtTier = potentialAncestor
+                            break
+                        end
+                    end
+                    
+                    if ancestorAtTier and ancestorAtTier.buy then
+                        shouldCountCost = false
+                        break
+                    end
+                end
+            end
+            
+            if shouldCountCost then
+                local itemCost = 0
+                if item.buy then
+                    -- If buying, use market price
+                    local marketPrice = marketdata[item.id] and marketdata[item.id].average or 0
+                    local amount = item.amount or 1
+                    itemCost = marketPrice * amount
+                    log("COST CALC: Buying " .. item.name .. " - cost=" .. itemCost .. " (price=" .. marketPrice .. ", amount=" .. amount .. ")", "INITIAL_COST")
+                end
+                initialTotalCost = initialTotalCost + itemCost
+                --log("Item " .. item.name .. " (tier " .. item.tier .. ") - cost=" .. itemCost, "INITIAL_COST")
+            end
+        end
+        
+        log("Initial total cost: " .. initialTotalCost, "INITIAL_COST")
+        
+        -- Set the total labor and cost on the main item (tier 0)
         for i, item in ipairs(recipeData) do
             if item.tier == 0 then
                 item.totalLaborCost = initialTotalLabor
+                item.totalMaterialCost = initialTotalCost
                 --log("Set initial tier 0 total labor cost to: " .. initialTotalLabor, "INITIAL_LABOR")
+                log("Set initial tier 0 total material cost to: " .. initialTotalCost, "INITIAL_COST")
                 break
             end
         end
@@ -847,7 +893,7 @@ return function(deps)
                                                 local amount = item.amount or 1
                                                 itemLabor = baseLabor * amount
                                                 totalLabor = totalLabor + itemLabor
-                                                log("PHASE3.6: Using existing labor data for " .. item.name .. " - labor=" .. itemLabor .. " (no API calls!)", "PHASE3_FINAL")
+                                                --log("PHASE3.6: Using existing labor data for " .. item.name .. " - labor=" .. itemLabor .. " (no API calls!)", "PHASE3_FINAL")
                                                 --log("Counting - " .. item.name .. " (tier " .. item.tier .. ", buy=" .. tostring(item.buy) .. ") - labor=" .. itemLabor, "LABOR_RECALC")
                                             else
                                                 --log("Skipping - " .. item.name .. " (tier " .. item.tier .. ", buy=" .. tostring(item.buy) .. ") - " .. skipReason, "LABOR_RECALC")
@@ -870,6 +916,66 @@ return function(deps)
                                         end
                                         
                                         --log("=== LABOR RECALCULATION COMPLETE ===", "LABOR_RECALC")
+                                        
+                                        -- COST RECALC Phase: Recalculate total cost for tier 0 item
+                                        log("=== RECALCULATING TOTAL COST ===", "COST_RECALC")
+                                        local totalCost = 0
+                                        
+                                        -- Sum up all material costs from items marked as "buy" (opposite of labor logic)
+                                        for k, item in ipairs(recipeData) do
+                                            local shouldCountCost = true
+                                            
+                                            -- Check if this item should be counted (skip if parent is marked as "buy")
+                                            if item.tier > 0 then
+                                                for checkTier = item.tier - 1, 0, -1 do
+                                                    local ancestorAtTier = nil
+                                                    
+                                                    for parentIndex = k - 1, 1, -1 do
+                                                        local potentialAncestor = recipeData[parentIndex]
+                                                        if potentialAncestor.tier == checkTier then
+                                                            ancestorAtTier = potentialAncestor
+                                                            break
+                                                        end
+                                                    end
+                                                    
+                                                    if ancestorAtTier and ancestorAtTier.buy then
+                                                        shouldCountCost = false
+                                                        break
+                                                    end
+                                                end
+                                            end
+                                            
+                                            if shouldCountCost then
+                                                local itemCost = 0
+                                                if item.buy then
+                                                    -- If buying, use market price
+                                                    local marketPrice = marketdata[item.id] and marketdata[item.id].average or 0
+                                                    local amount = item.amount or 1
+                                                    itemCost = marketPrice * amount
+                                                    log("COST RECALC: Adding cost for " .. item.name .. " - cost=" .. itemCost .. " (price=" .. marketPrice .. ", amount=" .. amount .. ")", "COST_RECALC")
+                                                end
+                                                totalCost = totalCost + itemCost
+                                                --log("Item " .. item.name .. " (tier " .. item.tier .. ") - cost=" .. itemCost, "COST_RECALC")
+                                            end
+                                        end
+                                        
+                                        -- Update the main item (tier 0) with the new total cost
+                                        for k, item in ipairs(recipeData) do
+                                            if item.tier == 0 then
+                                                item.totalMaterialCost = totalCost
+                                                log("Updated tier 0 total material cost to: " .. totalCost, "COST_RECALC")
+                                                
+                                                -- Update the total cost value label
+                                                if totalCostValueLabel then
+                                                    totalCostValueLabel:SetText(tostring(totalCost))
+                                                    log("Updated total cost label to: " .. totalCost, "COST_RECALC")
+                                                end
+                                                
+                                                break
+                                            end
+                                        end
+                                        
+                                        log("=== COST RECALCULATION COMPLETE ===", "COST_RECALC")
                                         
                                         -- BUY/CRAFT Phase 3: Filter visible items and update display
                                         log("=== FILTERING VISIBLE ITEMS AFTER CASCADE ===", "BUY_CRAFT_PHASE3")
@@ -957,7 +1063,7 @@ return function(deps)
                             -- PHASE 3.6: For tier 0, show individual craft cost (stored should be base, not total)
                             local baseLabor = rowData.laborCost or 0
                             local individualLabor = rowData.buy and 0 or baseLabor
-                            log("Tier 0 labor display: " .. rowData.name .. " - base=" .. baseLabor .. " (using stored base)", "LABOR_FIX")
+                            --log("Tier 0 labor display: " .. rowData.name .. " - base=" .. baseLabor .. " (using stored base)", "LABOR_FIX")
                             if rowData.buy then
                                 subItem:SetText("0 (BUY)")
                                 ApplyTextColor(subItem, FONT_COLOR.GREEN)
@@ -1029,7 +1135,7 @@ return function(deps)
         totalCostValueLabel = gui.AddLabel(
             recipeWindow,                     -- parent window
             "totalLaborLabel",                   -- unique ID
-            "0",  -- initial text set to calculated total
+            tostring(initialTotalCost),  -- initial text set to calculated total
             "LEFT",                         -- anchor to left of search box
             totalCostLabel,                      -- anchor target
             80,                            -- x offset (right of 300px search box + 10px gap)
@@ -1042,7 +1148,7 @@ return function(deps)
 
 
         -- Create the scroll list
-        log("About to create scroll list with " .. #recipeData .. " items", "RECIPE_DISPLAY")
+        --log("About to create scroll list with " .. #recipeData .. " items", "RECIPE_DISPLAY")
         
         -- Create the scroll list (simple version)
         recipeWindow.itemList = gui.AddScrollList(
