@@ -1,0 +1,15 @@
+# Only track cashmoney addon for now
+/*
+!cashmoney/
+!.gitignore
+
+# Inside cashmoney, exclude debug and temp files  
+cashmoney/data/debug.lua
+cashmoney/.claude/
+cashmoney/windows/backups/
+*.bak
+*.backup
+*.tmp
+*.temp
+Thumbs.db
+*.DS_Store
