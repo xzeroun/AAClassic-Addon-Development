@@ -427,9 +427,10 @@ return function(deps)
                 tierLevel = tier,  -- Alias for compatibility
                 workbench = item.workbench or "Default",
                 type = tier == 0 and "Main Item" or "Material",
-                buy = false,  -- Default to craft
+                buy = (item.workbench == "Raw Material"),  -- Auto-mark raw materials as buy
                 expanded = tier == 0 or true,  -- Main item always expanded, craft items start expanded
-                laborCost = item.laborCost or 0  -- Include labor cost for display
+                laborCost = item.laborCost or 0,  -- Include labor cost for display
+                materials = item.materials or {}  -- Include materials data for S/LP calculations
             })
             
             -- Add materials recursively
@@ -552,44 +553,26 @@ return function(deps)
         end
         
         -- Calculate initial total cost (materials)
-        --log("=== CALCULATING INITIAL TOTAL COST ===", "INITIAL_COST")
         local initialTotalCost = 0
         
-        -- Sum up all material costs from all items (initially all are craft since buy defaults to false)
+        -- When everything starts as "craft", calculate cost of raw materials needed
         for i, item in ipairs(recipeData) do
-            local shouldCountCost = true
+            local shouldCountCost = false
             
-            -- Check if this item should be counted (initially no ancestors are "buy")
-            if item.tier > 0 then
-                for checkTier = item.tier - 1, 0, -1 do
-                    local ancestorAtTier = nil
-                    
-                    for parentIndex = i - 1, 1, -1 do
-                        local potentialAncestor = recipeData[parentIndex]
-                        if potentialAncestor.tier == checkTier then
-                            ancestorAtTier = potentialAncestor
-                            break
-                        end
-                    end
-                    
-                    if ancestorAtTier and ancestorAtTier.buy then
-                        shouldCountCost = false
-                        break
-                    end
-                end
+            -- Check if this is a raw material or if we should buy it
+            if item.buy then
+                -- If marked as buy, count its market price
+                shouldCountCost = true
+            elseif item.workbench == "Raw Material" then
+                -- If it's a raw material and not marked as buy, we still need to buy it
+                shouldCountCost = true
             end
             
             if shouldCountCost then
-                local itemCost = 0
-                if item.buy then
-                    -- If buying, use market price
-                    local marketPrice = marketdata[item.id] and marketdata[item.id].average or 0
-                    local amount = item.amount or 1
-                    itemCost = marketPrice * amount
-                    --log("COST CALC: Buying " .. item.name .. " - cost=" .. itemCost .. " (price=" .. marketPrice .. ", amount=" .. amount .. ")", "INITIAL_COST")
-                end
+                local marketPrice = marketdata[item.id] and marketdata[item.id].average or 0
+                local amount = item.amount or 1
+                local itemCost = marketPrice * amount
                 initialTotalCost = initialTotalCost + itemCost
-                --log("Item " .. item.name .. " (tier " .. item.tier .. ") - cost=" .. itemCost, "INITIAL_COST")
             end
         end
         
@@ -938,42 +921,71 @@ return function(deps)
                                         --log("=== RECALCULATING TOTAL COST ===", "COST_RECALC")
                                         local totalCost = 0
                                         
-                                        -- Sum up all material costs from items marked as "buy" (opposite of labor logic)
+                                        -- Use same recursive cost calculation logic as Cost column for consistency
+                                        local dependencyLookup = {}
+                                        for _, item in ipairs(recipeData) do
+                                            dependencyLookup[item.id] = item
+                                        end
+                                        
+                                        -- Find tier 0 item and calculate its total cost
+                                        local tier0Item = nil
                                         for k, item in ipairs(recipeData) do
-                                            local shouldCountCost = true
-                                            
-                                            -- Check if this item should be counted (skip if parent is marked as "buy")
-                                            if item.tier > 0 then
-                                                for checkTier = item.tier - 1, 0, -1 do
-                                                    local ancestorAtTier = nil
-                                                    
-                                                    for parentIndex = k - 1, 1, -1 do
-                                                        local potentialAncestor = recipeData[parentIndex]
-                                                        if potentialAncestor.tier == checkTier then
-                                                            ancestorAtTier = potentialAncestor
-                                                            break
-                                                        end
-                                                    end
-                                                    
-                                                    if ancestorAtTier and ancestorAtTier.buy then
-                                                        shouldCountCost = false
+                                            if item.tier == 0 then
+                                                tier0Item = item
+                                                break
+                                            end
+                                        end
+                                        
+                                        if tier0Item then
+                                            local function calculateTotalCost(itemId, quantity, visited)
+                                                visited = visited or {}
+                                                quantity = quantity or 1
+                                                
+                                                if visited[itemId] then return 0 end
+                                                visited[itemId] = true
+                                                
+                                                local itemData = dependencyLookup[itemId]
+                                                if not itemData then
+                                                    visited[itemId] = nil
+                                                    return 0
+                                                end
+                                                
+                                                local marketPrice = marketdata[itemId] and marketdata[itemId].average or 0
+                                                
+                                                -- If item is marked as buy, return its market cost (don't recurse into children)
+                                                if itemData.buy then
+                                                    visited[itemId] = nil
+                                                    return marketPrice * quantity
+                                                end
+                                                
+                                                -- Check if raw material
+                                                local hasMaterials = false
+                                                if itemData.materials and type(itemData.materials) == "table" then
+                                                    for _ in pairs(itemData.materials) do
+                                                        hasMaterials = true
                                                         break
                                                     end
                                                 end
+                                                
+                                                if not hasMaterials then
+                                                    visited[itemId] = nil
+                                                    return marketPrice * quantity
+                                                end
+                                                
+                                                -- Calculate material costs recursively
+                                                local materialCost = 0
+                                                for stringKey, matInfo in pairs(itemData.materials) do
+                                                    local matId = matInfo.id
+                                                    local matQuantity = matInfo.amount * quantity
+                                                    local childCost = calculateTotalCost(matId, matQuantity, visited)
+                                                    materialCost = materialCost + childCost
+                                                end
+                                                
+                                                visited[itemId] = nil
+                                                return materialCost
                                             end
                                             
-                                            if shouldCountCost then
-                                                local itemCost = 0
-                                                if item.buy then
-                                                    -- If buying, use market price
-                                                    local marketPrice = marketdata[item.id] and marketdata[item.id].average or 0
-                                                    local amount = item.amount or 1
-                                                    itemCost = marketPrice * amount
-                                                    --log("COST RECALC: Adding cost for " .. item.name .. " - cost=" .. itemCost .. " (price=" .. marketPrice .. ", amount=" .. amount .. ")", "COST_RECALC")
-                                                end
-                                                totalCost = totalCost + itemCost
-                                                --log("Item " .. item.name .. " (tier " .. item.tier .. ") - cost=" .. itemCost, "COST_RECALC")
-                                            end
+                                            totalCost = calculateTotalCost(tier0Item.id, 1, {})
                                         end
                                         
                                         -- Update the main item (tier 0) with the new total cost
@@ -1117,64 +1129,89 @@ return function(deps)
                             -- Step 1: Get market value for this item
                             local marketValue = marketdata[rowData.id] and marketdata[rowData.id].average or 0
                             
-                            -- Step 2: Calculate material costs by finding children in recipeData
+                            -- Step 2: Calculate material costs using main window logic (recursive buy/craft decisions)
                             local materialCosts = 0
                             
-                            -- Find this item's position in recipeData
-                            local currentIndex = nil
-                            for i, item in ipairs(recipeData) do
-                                if item.id == rowData.id and item.tier == rowData.tier then
-                                    currentIndex = i
-                                    break
-                                end
+                            -- Build dependency lookup from recipeData for this calculation
+                            local dependencyLookup = {}
+                            for _, item in ipairs(recipeData) do
+                                dependencyLookup[item.id] = item
                             end
                             
-                            if currentIndex then
-                                -- Phase 1: Track children found for debugging
-                                local childrenFound = 0
-                                local buyChildren = 0
-                                local craftChildren = 0
+                            -- Recursive function matching main window's CalculateFromDependencyTree logic
+                            local function calculateItemCost(itemId, quantity, visited)
+                                visited = visited or {}
+                                quantity = quantity or 1
                                 
-                                -- Look for immediate children (tier + 1)
-                                for j = currentIndex + 1, #recipeData do
-                                    local child = recipeData[j]
-                                    
-                                    -- Stop if we hit an item at same or lower tier (not a child)
-                                    if child.tier <= rowData.tier then
+                                -- Prevent infinite recursion
+                                if visited[itemId] then return 0 end
+                                visited[itemId] = true
+                                
+                                -- Get item data from our recipe data
+                                local itemData = dependencyLookup[itemId]
+                                if not itemData then
+                                    visited[itemId] = nil
+                                    return 0
+                                end
+                                
+                                -- Get market price
+                                local marketPrice = marketdata[itemId] and marketdata[itemId].average or 0
+                                
+                                -- Check if item has materials (raw material check)
+                                local hasMaterials = false
+                                if itemData.materials and type(itemData.materials) == "table" then
+                                    for _ in pairs(itemData.materials) do
+                                        hasMaterials = true
                                         break
                                     end
+                                end
+                                
+                                -- If no materials (raw material), return market price
+                                if not hasMaterials then
+                                    visited[itemId] = nil
+                                    return marketPrice * quantity
+                                end
+                                
+                                -- Calculate crafting costs based on materials
+                                local totalMaterialCost = 0
+                                
+                                -- Process all materials using buy/craft decisions
+                                for stringKey, matInfo in pairs(itemData.materials) do
+                                    local matId = matInfo.id
+                                    local matQuantity = matInfo.amount * quantity
+                                    local shouldBuy = matInfo.buy
                                     
-                                    -- Only count direct children (tier + 1)
-                                    if child.tier == (rowData.tier + 1) then
-                                        childrenFound = childrenFound + 1
-                                        
-                                        if child.buy then
-                                            buyChildren = buyChildren + 1
-                                            -- Child is bought - add market cost
-                                            local childMarketPrice = marketdata[child.id] and marketdata[child.id].average or 0
-                                            local childAmount = child.amount or 1
-                                            local childCost = childMarketPrice * childAmount
-                                            materialCosts = materialCosts + childCost
-                                        else
-                                            craftChildren = craftChildren + 1
-                                            -- Crafted children cost=0 for now (Phase 1 limitation)
-                                        end
+                                    if shouldBuy then
+                                        -- Buy this material - use market price
+                                        local matMarketPrice = marketdata[matId] and marketdata[matId].average or 0
+                                        totalMaterialCost = totalMaterialCost + (matMarketPrice * matQuantity)
+                                    else
+                                        -- Craft this material - recurse
+                                        local childCost = calculateItemCost(matId, matQuantity, visited)
+                                        totalMaterialCost = totalMaterialCost + childCost
                                     end
                                 end
                                 
-                                -- Phase 1: Log child discovery results (only for tier 0 to reduce spam)
-                                if rowData.tier == 0 and childrenFound > 0 then
-                                    log("PHASE1: " .. (rowData.name or "unknown") .. " found " .. childrenFound .. " children (" .. buyChildren .. " buy, " .. craftChildren .. " craft)", "SILVER_LABOR_PHASE1")
-                                end
+                                visited[itemId] = nil
+                                return totalMaterialCost
                             end
                             
+                            -- Calculate material costs for this item
+                            materialCosts = calculateItemCost(rowData.id, 1, {})
+                            
                             -- Step 3: Calculate profit and Silver/Labor
-                            local profit = marketValue - materialCosts
+                            local profit = 0
                             local laborCost = rowData.laborCost or 0
                             
-                            -- Debug only once per unique item (reduced logging)
                             if rowData.tier == 0 then
-                                log("Silver/Labor calc: " .. (rowData.name or "unknown") .. " marketValue=" .. marketValue .. " materialCosts=" .. materialCosts .. " profit=" .. profit .. " labor=" .. laborCost .. " result=" .. (laborCost > 0 and format4(profit / laborCost) or "N/A"), "SILVER_LABOR")
+                                -- For parent item, use total material cost and total labor cost
+                                local totalMaterialCost = rowData.totalMaterialCost or 0
+                                local totalLaborCost = rowData.totalLaborCost or laborCost  -- Use total labor if available
+                                profit = marketValue - totalMaterialCost
+                                laborCost = totalLaborCost  -- Override laborCost with total labor for parent
+                            else
+                                -- For child items, calculate using their own material costs
+                                profit = marketValue - materialCosts
                             end
                             
                             if laborCost > 0 then
@@ -1199,30 +1236,82 @@ return function(deps)
                 setFunc = function(subItem, rowData, setValue)
                     if setValue then
                         --log("PHASE2: Adding Cost column for " .. rowData.name, "PHASE2_COST_COLUMN")
-                        if rowData.tier == 0 then
-                            -- For tier 0, show individual market cost (if buying)
-                            if rowData.buy then
-                                local marketPrice = marketdata[rowData.id] and marketdata[rowData.id].average or 0
-                                local amount = rowData.amount or 1
-                                local totalCost = marketPrice * amount
-                                subItem:SetText(tostring(totalCost))
-                                ApplyTextColor(subItem, FONT_COLOR.GREEN)
-                            else
-                                subItem:SetText("0 (CRAFT)")
-                                ApplyTextColor(subItem, FONT_COLOR.DEFAULT)
-                            end
+                        if rowData.buy then
+                            -- If buying, show market price
+                            local marketPrice = marketdata[rowData.id] and marketdata[rowData.id].average or 0
+                            local amount = rowData.amount or 1
+                            local totalCost = marketPrice * amount
+                            subItem:SetText(format4(totalCost))
+                            ApplyTextColor(subItem, FONT_COLOR.GREEN)
+                        elseif rowData.tier == 0 then
+                            -- For tier 0 (parent), use totalMaterialCost if available (same as Total Cost label)
+                            local totalMaterialCost = rowData.totalMaterialCost or 0
+                            subItem:SetText(format4(totalMaterialCost))
+                            ApplyTextColor(subItem, FONT_COLOR.DEFAULT)
                         else
-                            -- For other items, show market price * amount if buying
-                            if rowData.buy then
-                                local marketPrice = marketdata[rowData.id] and marketdata[rowData.id].average or 0
-                                local amount = rowData.amount or 1
-                                local totalCost = marketPrice * amount
-                                subItem:SetText(tostring(totalCost))
-                                ApplyTextColor(subItem, FONT_COLOR.GREEN)
-                            else
-                                subItem:SetText("0 (CRAFT)")
-                                ApplyTextColor(subItem, FONT_COLOR.DEFAULT)
+                            -- If crafting, calculate and show material costs
+                            local materialCost = 0
+                            
+                            -- Build dependency lookup for calculation
+                            local dependencyLookup = {}
+                            for _, item in ipairs(recipeData) do
+                                dependencyLookup[item.id] = item
                             end
+                            
+                            -- Recursive cost calculation (same logic as Silver/Labor)
+                            local function calculateCost(itemId, quantity, visited)
+                                visited = visited or {}
+                                quantity = quantity or 1
+                                
+                                if visited[itemId] then return 0 end
+                                visited[itemId] = true
+                                
+                                local itemData = dependencyLookup[itemId]
+                                if not itemData then
+                                    visited[itemId] = nil
+                                    return 0
+                                end
+                                
+                                local marketPrice = marketdata[itemId] and marketdata[itemId].average or 0
+                                
+                                -- Check if raw material
+                                local hasMaterials = false
+                                if itemData.materials and type(itemData.materials) == "table" then
+                                    for _ in pairs(itemData.materials) do
+                                        hasMaterials = true
+                                        break
+                                    end
+                                end
+                                
+                                if not hasMaterials then
+                                    visited[itemId] = nil
+                                    return marketPrice * quantity
+                                end
+                                
+                                -- Calculate material costs
+                                local totalCost = 0
+                                for stringKey, matInfo in pairs(itemData.materials) do
+                                    local matId = matInfo.id
+                                    local matQuantity = matInfo.amount * quantity
+                                    local shouldBuy = matInfo.buy
+                                    
+                                    if shouldBuy then
+                                        local matMarketPrice = marketdata[matId] and marketdata[matId].average or 0
+                                        totalCost = totalCost + (matMarketPrice * matQuantity)
+                                    else
+                                        local childCost = calculateCost(matId, matQuantity, visited)
+                                        totalCost = totalCost + childCost
+                                    end
+                                end
+                                
+                                visited[itemId] = nil
+                                return totalCost
+                            end
+                            
+                            local itemAmount = rowData.amount or 1
+                            materialCost = calculateCost(rowData.id, itemAmount, {})
+                            subItem:SetText(format4(materialCost))
+                            ApplyTextColor(subItem, FONT_COLOR.DEFAULT)
                         end
                     end
                 end
