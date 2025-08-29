@@ -302,7 +302,7 @@ return function(deps)
             return count
         end
         
-        -- log("DisplayRecipeTree called for item ID: " .. itemId, "RECIPE_DISPLAY")
+        log("DisplayRecipeTree called for item ID: " .. itemId .. " (" .. (itemData and itemData.name or "no data") .. ")", "RECIPE_DISPLAY")
         
         -- PHASE 3.5: Use passed item data directly (zero API calls!)
         --log("PHASE3.5: Using passed item data directly - no file reads needed!", "PHASE3_FINAL")
@@ -418,6 +418,9 @@ return function(deps)
             end
             processedItems[itemKey] = true
             
+            -- Determine buy state: raw materials are auto-marked as buy, others default to craft
+            local buyState = (item.workbench == "Raw Material")
+            
             -- Add current item to recipe data
             table.insert(recipeData, {
                 id = item.id,
@@ -427,7 +430,7 @@ return function(deps)
                 tierLevel = tier,  -- Alias for compatibility
                 workbench = item.workbench or "Default",
                 type = tier == 0 and "Main Item" or "Material",
-                buy = (item.workbench == "Raw Material"),  -- Auto-mark raw materials as buy
+                buy = buyState,  -- Use saved preference or default to raw material check
                 expanded = tier == 0 or true,  -- Main item always expanded, craft items start expanded
                 laborCost = item.laborCost or 0,  -- Include labor cost for display
                 materials = item.materials or {}  -- Include materials data for S/LP calculations
@@ -466,6 +469,7 @@ return function(deps)
                             --log("PHASE3: Created basic raw material for " .. materialItem.name, "PHASE3_CLEAN")
                         end
                         
+                        
                         -- Recursively add this material
                         addItemToTier(materialItem, materialData.amount * amount, tier + 1, processedItems)
                     end
@@ -479,9 +483,9 @@ return function(deps)
         
         -- Function to check if an item has actual children in the recipe data
         local function itemHasChildren(itemId, itemTier)
-            -- Find the item's position in recipeData
+            -- Find the item's position in originalRecipeData (complete dataset)
             local itemIndex = nil
-            for i, recipeItem in ipairs(recipeData) do
+            for i, recipeItem in ipairs(originalRecipeData or recipeData) do
                 if recipeItem.id == itemId and recipeItem.tier == itemTier then
                     itemIndex = i
                     break
@@ -491,8 +495,8 @@ return function(deps)
             if not itemIndex then return false end
             
             -- Check if there are any items immediately following this one with a higher tier
-            for i = itemIndex + 1, #recipeData do
-                local potentialChild = recipeData[i]
+            for i = itemIndex + 1, #(originalRecipeData or recipeData) do
+                local potentialChild = (originalRecipeData or recipeData)[i]
                 
                 -- If we hit an item at same or lower tier, no more children
                 if potentialChild.tier <= itemTier then
@@ -511,7 +515,6 @@ return function(deps)
         --log("Built simple recipe data with " .. #recipeData .. " items", "RECIPE_DISPLAY")
         
         -- Calculate initial total labor cost
-        --log("=== CALCULATING INITIAL TOTAL LABOR ===", "INITIAL_LABOR")
         local initialTotalLabor = 0
         
         -- Sum up all labor costs from all items (initially all are craft since buy defaults to false)
@@ -578,18 +581,123 @@ return function(deps)
         
         --log("Initial total cost: " .. initialTotalCost, "INITIAL_COST")
         
+        -- Apply saved preferences from targetItem.materials to recipe data
+        log("=== APPLYING SAVED PREFERENCES ===", "SAVED_PREFS")
+        log("Target item: " .. (targetItem.name or "unknown"), "SAVED_PREFS")
+        log("Has materials: " .. (targetItem.materials and "yes" or "no"), "SAVED_PREFS")
+        
+        if targetItem.materials then
+            log("Materials found: " .. table_count(targetItem.materials), "SAVED_PREFS")
+            for matKey, matInfo in pairs(targetItem.materials) do
+                log("Material: " .. matKey .. " -> id=" .. (matInfo.id or "nil") .. " name=" .. (matInfo.name or "nil") .. " buy=" .. tostring(matInfo.buy), "SAVED_PREFS")
+            end
+            
+            for _, recipeItem in ipairs(recipeData) do
+                -- Look for this item in the saved materials preferences
+                for matKey, matInfo in pairs(targetItem.materials) do
+                    if matInfo.id == recipeItem.id and matInfo.buy ~= nil then
+                        log("MATCH FOUND! Applying saved preference for " .. recipeItem.name .. ": buy=" .. tostring(matInfo.buy), "SAVED_PREFS")
+                        recipeItem.buy = matInfo.buy
+                        break
+                    end
+                end
+            end
+        else
+            log("No materials found in targetItem", "SAVED_PREFS")
+        end
+        
+        -- Apply saved preferences from deeper dependencies
+        if targetItem.dependencies then
+            for _, recipeItem in ipairs(recipeData) do
+                for depKey, depData in pairs(targetItem.dependencies) do
+                    if depData.materials then
+                        for matKey, matInfo in pairs(depData.materials) do
+                            if matInfo.id == recipeItem.id and matInfo.buy ~= nil then
+                                recipeItem.buy = matInfo.buy
+                                --log("Applied saved deep preference for " .. recipeItem.name .. ": buy=" .. tostring(matInfo.buy), "SAVED_PREFS")
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Apply hierarchy logic: if parent is marked as buy, hide/collapse all children
+        log("=== APPLYING HIERARCHY LOGIC ===", "HIERARCHY")
+        
+        -- Apply hierarchy collapse logic using expanded property (same as left-click collapse)
+        for i, parentItem in ipairs(recipeData) do
+            log("Checking item: " .. parentItem.name .. " tier=" .. parentItem.tier .. " buy=" .. tostring(parentItem.buy), "HIERARCHY")
+            if parentItem.buy then
+                log("Item " .. parentItem.name .. " is marked as BUY - collapsing via expanded=false", "HIERARCHY")
+                -- Use the same approach as the existing expand/collapse system
+                parentItem.expanded = false
+                log("Set " .. parentItem.name .. ".expanded = false (children will be hidden by scroll list)", "HIERARCHY")
+            else
+                -- If not buying, make sure it can be expanded
+                if parentItem.expanded == nil then
+                    parentItem.expanded = true
+                    log("Set " .. parentItem.name .. ".expanded = true (default for craftable items)", "HIERARCHY")
+                end
+            end
+        end
+        
+        -- Apply the same filtering logic as the existing expand/collapse system
+        log("=== APPLYING VISIBILITY FILTERING ===", "HIERARCHY")
+        local filteredRecipeData = {}
+        for k, item in ipairs(recipeData) do
+            local shouldShow = true
+            
+            if item.tier > 0 then
+                -- Build the ancestry chain by walking backwards through tiers
+                for checkTier = item.tier - 1, 0, -1 do
+                    local ancestorAtTier = nil
+                    
+                    -- Find the most recent item at this tier level
+                    for parentIndex = k - 1, 1, -1 do
+                        local potentialAncestor = recipeData[parentIndex]
+                        if potentialAncestor.tier == checkTier then
+                            ancestorAtTier = potentialAncestor
+                            break
+                        end
+                    end
+                    
+                    -- If we found an ancestor at this tier and it's collapsed, hide this item
+                    if ancestorAtTier and not ancestorAtTier.expanded then
+                        shouldShow = false
+                        log("Hiding child " .. item.name .. " because parent " .. ancestorAtTier.name .. " is collapsed", "HIERARCHY")
+                        break
+                    end
+                end
+            end
+            
+            if shouldShow then
+                table.insert(filteredRecipeData, item)
+            end
+        end
+        
+        -- Keep the complete original recipe data for runtime operations
+        originalRecipeData = recipeData  -- Store complete data globally for toggle operations
+        recipeData = filteredRecipeData  -- Use filtered data for initial display
+        
+        log("HIERARCHY_REFRESH: Now showing " .. #recipeData .. " of " .. #originalRecipeData .. " items", "HIERARCHY")
+        
         -- Set the total labor and cost on the main item (tier 0)
         for i, item in ipairs(recipeData) do
             if item.tier == 0 then
-                item.totalLaborCost = initialTotalLabor
+                -- Use saved totalLaborCost if available, otherwise use calculated
+                item.totalLaborCost = targetItem.totalLaborCost or initialTotalLabor
                 item.totalMaterialCost = initialTotalCost
-                --log("Set initial tier 0 total labor cost to: " .. initialTotalLabor, "INITIAL_LABOR")
-                --log("Set initial tier 0 total material cost to: " .. initialTotalCost, "INITIAL_COST")
+                --log("Set tier 0 total labor cost to: " .. (item.totalLaborCost), "INITIAL_LABOR")
+                --log("Set tier 0 total material cost to: " .. initialTotalCost, "INITIAL_COST")
                 break
             end
         end
         
         --log("=== INITIAL LABOR CALCULATION COMPLETE ===", "INITIAL_LABOR")
+        
+        -- Don't filter permanently - just mark visibility for dynamic hiding/showing
         
         -- Simple columns
         local columns = {
@@ -666,9 +774,9 @@ return function(deps)
                                 -- log("Labor Cost: " .. tostring(self.itemData.laborCost), "PHASE1")
                                 -- log("=== END CLICKED DETAILS ===", "PHASE1")
                                 
-                                -- PHASE 2: Find and toggle in recipeData
+                                -- PHASE 2: Find and toggle in originalRecipeData (complete dataset)
                                 --log("=== SEARCHING FOR ORIGINAL ITEM ===", "PHASE2")
-                                for i, originalItem in ipairs(recipeData) do
+                                for i, originalItem in ipairs(originalRecipeData or recipeData) do
                                     if originalItem.id == self.itemData.id and originalItem.tier == self.itemData.tier then
                                         --log("Found original item at index " .. i, "PHASE2")
                                         --log("Original expanded state: " .. tostring(originalItem.expanded), "PHASE2")
@@ -701,14 +809,18 @@ return function(deps)
                                         --log("Total descendants found: " .. childrenFound, "PHASE3")
                                         --log("=== CHILDREN IDENTIFICATION COMPLETE ===", "PHASE3")
                                         
-                                        -- PHASE 4: Filter recipeData to show only visible items
+                                        -- PHASE 4: Filter originalRecipeData to show only visible items
                                         --log("=== FILTERING VISIBLE ITEMS ===", "PHASE4")
                                         local visibleData = {}
                                         
-                                        for k, item in ipairs(recipeData) do
+                                        for k, item in ipairs(originalRecipeData or recipeData) do
                                             local shouldShow = true
                                             
-                                            if item.tier == 0 then
+                                            -- Skip collapsed items (children of items marked as "buy")
+                                            if item.collapsed then
+                                                shouldShow = false
+                                                --log("Skipping collapsed item: " .. item.name, "PHASE4")
+                                            elseif item.tier == 0 then
                                                 -- Always show main item (tier 0)
                                                 shouldShow = true
                                                 --log("Tier 0 - Always show: " .. item.name, "PHASE4")
@@ -722,7 +834,7 @@ return function(deps)
                                                     
                                                     -- Find the most recent item at this tier level
                                                     for parentIndex = k - 1, 1, -1 do
-                                                        local potentialAncestor = recipeData[parentIndex]
+                                                        local potentialAncestor = (originalRecipeData or recipeData)[parentIndex]
                                                         if potentialAncestor.tier == checkTier then
                                                             ancestorAtTier = potentialAncestor
                                                             break
@@ -768,25 +880,96 @@ return function(deps)
                             
                             elseif mouseButton == "RightButton" then
                                 -- BUY/CRAFT Phase 1: Right-click detection and logging
-                                --log("=== RIGHT-CLICK DETECTED ===", "BUY_CRAFT_PHASE1")
-                                --log("Item: " .. tostring(self.itemData.name), "BUY_CRAFT_PHASE1")
-                                --log("Current buy status: " .. tostring(self.itemData.buy), "BUY_CRAFT_PHASE1")
-                                --log("Tier: " .. tostring(self.itemData.tier), "BUY_CRAFT_PHASE1")
-                                --log("ID: " .. tostring(self.itemData.id), "BUY_CRAFT_PHASE1")
-                                --log("=== RIGHT-CLICK LOG COMPLETE ===", "BUY_CRAFT_PHASE1")
+                                log("=== RIGHT-CLICK DETECTED ===", "BUY_CRAFT_TOGGLE")
+                                log("Item: " .. tostring(self.itemData.name), "BUY_CRAFT_TOGGLE")
+                                log("Current buy status: " .. tostring(self.itemData.buy), "BUY_CRAFT_TOGGLE")
+                                log("Tier: " .. tostring(self.itemData.tier), "BUY_CRAFT_TOGGLE")
+                                log("ID: " .. tostring(self.itemData.id), "BUY_CRAFT_TOGGLE")
                                 
-                                -- BUY/CRAFT Phase 2: Toggle buy status in recipeData
+                                -- BUY/CRAFT Phase 2: Toggle buy status in originalRecipeData (complete dataset)
                                 --log("=== SEARCHING FOR ITEM IN RECIPEDATA ===", "BUY_CRAFT_PHASE2")
-                                for i, originalItem in ipairs(recipeData) do
+                                for i, originalItem in ipairs(originalRecipeData or recipeData) do
                                     if originalItem.id == self.itemData.id and originalItem.tier == self.itemData.tier then
                                         --log("Found original item at index " .. i, "BUY_CRAFT_PHASE2")
                                         --log("Original buy status: " .. tostring(originalItem.buy), "BUY_CRAFT_PHASE2")
                                         
                                         -- Toggle the buy status
                                         originalItem.buy = not originalItem.buy
+                                        log("TOGGLED: " .. originalItem.name .. " buy status from " .. tostring(not originalItem.buy) .. " to " .. tostring(originalItem.buy), "BUY_CRAFT_TOGGLE")
                                         
                                         -- Also update the stored itemData for consistency
                                         self.itemData.buy = originalItem.buy
+                                        
+                                        -- SAVE Phase: Update the targetItem's materials with the new buy preference
+                                        if targetItem.materials then
+                                            for matKey, matInfo in pairs(targetItem.materials) do
+                                                if matInfo.id == originalItem.id then
+                                                    matInfo.buy = originalItem.buy
+                                                    log("SAVED PREFERENCE: Updated " .. originalItem.name .. " buy=" .. tostring(originalItem.buy) .. " in targetItem.materials", "BUY_CRAFT_SAVE")
+                                                    break
+                                                end
+                                            end
+                                        end
+                                        
+                                        -- Save back to item_list.lua file
+                                        local existingItems = api.File:Read(config.files.itemList) or {}
+                                        for itemIndex, savedItem in ipairs(existingItems) do
+                                            if savedItem.id == targetItem.id then
+                                                -- Update the materials section with the new buy preference
+                                                if savedItem.materials then
+                                                    for matKey, matInfo in pairs(savedItem.materials) do
+                                                        if matInfo.id == originalItem.id then
+                                                            matInfo.buy = originalItem.buy
+                                                            log("SAVED TO FILE: Updated " .. originalItem.name .. " buy=" .. tostring(originalItem.buy) .. " in item_list.lua", "BUY_CRAFT_SAVE")
+                                                            break
+                                                        end
+                                                    end
+                                                end
+                                                break
+                                            end
+                                        end
+                                        
+                                        -- Write the updated data back to file
+                                        api.File:Write(config.files.itemList, existingItems)
+                                        
+                                        -- RECALCULATE AND SAVE TOTAL LABOR: Since buy/craft preference changed, recalculate total labor
+                                        log("RECALC_LABOR: Buy/craft preference changed, recalculating total labor...", "LABOR_RECALC_SAVE")
+                                        
+                                        -- REAPPLY HIERARCHY LOGIC: Since buy/craft status changed, reapply hierarchy collapse/expand
+                                        log("REAPPLY_HIERARCHY: Buy/craft status changed, updating hierarchy visibility...", "HIERARCHY_REFRESH")
+                                        
+                                        -- Use the original complete data for refresh
+                                        if originalRecipeData then
+                                            -- Reapply hierarchy logic using expanded property (same as existing system)
+                                            for k, parentItem in ipairs(originalRecipeData) do
+                                                if parentItem.buy then
+                                                    log("Collapsing " .. parentItem.name .. " via expanded=false (marked as buy)", "HIERARCHY_REFRESH")
+                                                    parentItem.expanded = false
+                                                else
+                                                    log("Expanding " .. parentItem.name .. " via expanded=true (marked as craft)", "HIERARCHY_REFRESH")
+                                                    if parentItem.expanded == nil then
+                                                        parentItem.expanded = true
+                                                    else
+                                                        parentItem.expanded = true
+                                                    end
+                                                end
+                                            end
+                                            
+                                            log("HIERARCHY_REFRESH: Updated expanded states, scroll list should reflect changes", "HIERARCHY_REFRESH")
+                                            
+                                            -- Trigger scroll list refresh to reflect expanded state changes
+                                            if recipeWindow.itemList then
+                                                if recipeWindow.itemList.Refresh then
+                                                    recipeWindow.itemList:Refresh()
+                                                    log("UI_REFRESH: Called scroll list Refresh() to update expanded states", "HIERARCHY_REFRESH")
+                                                elseif recipeWindow.itemList.UpdateData then
+                                                    recipeWindow.itemList:UpdateData(originalRecipeData)
+                                                    log("UI_REFRESH: Called scroll list UpdateData() with original data", "HIERARCHY_REFRESH")
+                                                end
+                                            else
+                                                log("UI_REFRESH: Could not find scroll list reference", "HIERARCHY_REFRESH")
+                                            end
+                                        end
                                         
                                         -- Adjust labor cost based on buy/craft decision
                                         if originalItem.buy then
@@ -826,24 +1009,27 @@ return function(deps)
                                             --log("=== VISUAL EXPAND COMPLETE ===", "CASCADE_PHASE1")
                                         end
                                         
-                                        -- LABOR RECALC Phase: Recalculate total labor for tier 0 item
-                                        --log("=== RECALCULATING TOTAL LABOR ===", "LABOR_RECALC")
+                                        -- LABOR RECALC Phase: Use saved totalLaborCost or recalculate if needed
+                                        --log("=== UPDATING TOTAL LABOR ===", "LABOR_RECALC")
                                         --log("Total items in recipe: " .. #recipeData, "LABOR_RECALC")
+                                        
+                                        -- Always recalculate totalLaborCost based on current buy/craft preferences
+                                        log("LABOR_LOGIC: Recalculating total labor based on current buy/craft preferences", "LABOR_DEBUG")
                                         local totalLabor = 0
                                         
                                         -- Sum up all labor costs, excluding items marked as "buy" and ALL their children
-                                        for k, item in ipairs(recipeData) do
-                                            local shouldSkip = false
-                                            local skipReason = ""
-                                            
-                                            if item.buy then
+                                        for k, item in ipairs(originalRecipeData or recipeData) do
+                                                local shouldSkip = false
+                                                local skipReason = ""
+                                                
+                                                if item.buy then
                                                 shouldSkip = true
                                                 skipReason = "marked as buy"
                                             else
                                                 -- Check if this item is a child of ANY item marked as "buy"
                                                 -- Look backwards through the array to find potential parents
                                                 for parentIndex = k - 1, 1, -1 do
-                                                    local potentialParent = recipeData[parentIndex]
+                                                    local potentialParent = (originalRecipeData or recipeData)[parentIndex]
                                                     
                                                     -- If we find an item at a lower tier (higher in hierarchy) that's marked as buy
                                                     if potentialParent.tier < item.tier and potentialParent.buy then
@@ -884,7 +1070,7 @@ return function(deps)
                                         end
                                         
                                         -- Update the main item (tier 0) with the new total labor
-                                        for k, item in ipairs(recipeData) do
+                                        for k, item in ipairs(originalRecipeData or recipeData) do
                                             if item.tier == 0 then
                                                 item.totalLaborCost = totalLabor
                                                 --log("Updated tier 0 total labor cost to: " .. totalLabor, "LABOR_RECALC")
@@ -923,13 +1109,13 @@ return function(deps)
                                         
                                         -- Use same recursive cost calculation logic as Cost column for consistency
                                         local dependencyLookup = {}
-                                        for _, item in ipairs(recipeData) do
+                                        for _, item in ipairs(originalRecipeData or recipeData) do
                                             dependencyLookup[item.id] = item
                                         end
                                         
                                         -- Find tier 0 item and calculate its total cost
                                         local tier0Item = nil
-                                        for k, item in ipairs(recipeData) do
+                                        for k, item in ipairs(originalRecipeData or recipeData) do
                                             if item.tier == 0 then
                                                 tier0Item = item
                                                 break
@@ -989,7 +1175,7 @@ return function(deps)
                                         end
                                         
                                         -- Update the main item (tier 0) with the new total cost
-                                        for k, item in ipairs(recipeData) do
+                                        for k, item in ipairs(originalRecipeData or recipeData) do
                                             if item.tier == 0 then
                                                 item.totalMaterialCost = totalCost
                                                 --log("Updated tier 0 total material cost to: " .. totalCost, "COST_RECALC")
@@ -1010,10 +1196,14 @@ return function(deps)
                                         --log("=== FILTERING VISIBLE ITEMS AFTER CASCADE ===", "BUY_CRAFT_PHASE3")
                                         local visibleData = {}
                                         
-                                        for k, item in ipairs(recipeData) do
+                                        for k, item in ipairs(originalRecipeData or recipeData) do
                                             local shouldShow = true
                                             
-                                            if item.tier == 0 then
+                                            -- Skip collapsed items (children of items marked as "buy")
+                                            if item.collapsed then
+                                                shouldShow = false
+                                                --log("Skipping collapsed item: " .. item.name, "BUY_CRAFT_PHASE3")
+                                            elseif item.tier == 0 then
                                                 -- Always show main item (tier 0)
                                                 shouldShow = true
                                                 --log("Tier 0 - Always show: " .. item.name, "BUY_CRAFT_PHASE3")
@@ -1027,7 +1217,7 @@ return function(deps)
                                                     
                                                     -- Find the most recent item at this tier level
                                                     for parentIndex = k - 1, 1, -1 do
-                                                        local potentialAncestor = recipeData[parentIndex]
+                                                        local potentialAncestor = (originalRecipeData or recipeData)[parentIndex]
                                                         if potentialAncestor.tier == checkTier then
                                                             ancestorAtTier = potentialAncestor
                                                             break
@@ -1376,9 +1566,9 @@ return function(deps)
 
 
         -- Create the scroll list
-        --log("About to create scroll list with " .. #recipeData .. " items", "RECIPE_DISPLAY")
+        log("Creating scroll list with " .. #recipeData .. " filtered items (from " .. #originalRecipeData .. " total)", "RECIPE_DISPLAY")
         
-        -- Create the scroll list (simple version)
+        -- Create the scroll list (simple version) - now uses filtered data
         recipeWindow.itemList = gui.AddScrollList(
             recipeWindow, "recipeList", columns,
             { point = "TOPLEFT", relativeTo = recipeWindow, offsetX = 20, offsetY = 70 },
