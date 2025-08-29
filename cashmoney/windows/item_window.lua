@@ -305,15 +305,15 @@ return function(deps)
         -- log("DisplayRecipeTree called for item ID: " .. itemId, "RECIPE_DISPLAY")
         
         -- PHASE 3.5: Use passed item data directly (zero API calls!)
-        log("PHASE3.5: Using passed item data directly - no file reads needed!", "PHASE3_FINAL")
+        --log("PHASE3.5: Using passed item data directly - no file reads needed!", "PHASE3_FINAL")
         
         if not itemData then
-            log("PHASE3.5: ERROR - No item data passed to DisplayRecipeTree", "PHASE3_FINAL")
+            --log("PHASE3.5: ERROR - No item data passed to DisplayRecipeTree", "PHASE3_FINAL")
             return
         end
         
         local targetItem = itemData
-        log("PHASE3.5: Target item: " .. targetItem.name .. " (dependencies: " .. (targetItem.dependencies and table_count(targetItem.dependencies) or 0) .. ")", "PHASE3_FINAL")
+        --log("PHASE3.5: Target item: " .. targetItem.name .. " (dependencies: " .. (targetItem.dependencies and table_count(targetItem.dependencies) or 0) .. ")", "PHASE3_FINAL")
         
         -- Log basic item info
         -- log("Found item: " .. (targetItem.name or "Unknown") .. " (ID: " .. itemId .. ")", "RECIPE_DISPLAY")
@@ -362,8 +362,8 @@ return function(deps)
         -- PHASE 2: Build tiered recipe data from existing dependencies structure
         local recipeData = {}
         
-        log("PHASE2: Using dependencies structure instead of recursive building", "PHASE2_PERF")
-        log("PHASE2: Dependencies available: " .. (targetItem.dependencies and table_count(targetItem.dependencies) or 0), "PHASE2_PERF")
+        --log("PHASE2: Using dependencies structure instead of recursive building", "PHASE2_PERF")
+        --log("PHASE2: Dependencies available: " .. (targetItem.dependencies and table_count(targetItem.dependencies) or 0), "PHASE2_PERF")
         
         -- PHASE 2: Direct structure conversion function
         local function buildFromDependencies()
@@ -381,7 +381,7 @@ return function(deps)
                 laborCost = targetItem.laborCost or 0
             })
             
-            log("PHASE2: Added main item: " .. targetItem.name, "PHASE2_PERF")
+            --log("PHASE2: Added main item: " .. targetItem.name, "PHASE2_PERF")
             
             -- Add all dependencies as materials with calculated tiers
             if targetItem.dependencies then
@@ -403,7 +403,7 @@ return function(deps)
                     })
                 end
                 
-                log("PHASE2: Added " .. table_count(targetItem.dependencies) .. " dependencies as materials", "PHASE2_PERF")
+                --log("PHASE2: Added " .. table_count(targetItem.dependencies) .. " dependencies as materials", "PHASE2_PERF")
             end
         end
         
@@ -439,19 +439,19 @@ return function(deps)
                         -- PHASE 3: Use dependencies exclusively (no fallbacks)
                         local materialItem = nil
                         
-                        log("PHASE3: Getting material ID " .. materialData.id .. " from dependencies only", "PHASE3_CLEAN")
+                        --log("PHASE3: Getting material ID " .. materialData.id .. " from dependencies only", "PHASE3_CLEAN")
                         
                         -- Get material directly from dependencies structure
                         if targetItem.dependencies then
                             local depKey = "id_" .. materialData.id
                             materialItem = targetItem.dependencies[depKey]
                             if materialItem then
-                                log("PHASE3: Found " .. materialData.name .. " in dependencies", "PHASE3_CLEAN")
+                                --log("PHASE3: Found " .. materialData.name .. " in dependencies", "PHASE3_CLEAN")
                             else
-                                log("PHASE3: Material " .. materialData.name .. " not found in dependencies - creating raw material", "PHASE3_CLEAN")
+                                --log("PHASE3: Material " .. materialData.name .. " not found in dependencies - creating raw material", "PHASE3_CLEAN")
                             end
                         else
-                            log("PHASE3: No dependencies structure available", "PHASE3_CLEAN")
+                            --log("PHASE3: No dependencies structure available", "PHASE3_CLEAN")
                         end
                         
                         -- Only fallback: create basic raw material (for excluded items)
@@ -462,7 +462,7 @@ return function(deps)
                                 workbench = "Raw Material",
                                 laborCost = 0
                             }
-                            log("PHASE3: Created basic raw material for " .. materialItem.name, "PHASE3_CLEAN")
+                            --log("PHASE3: Created basic raw material for " .. materialItem.name, "PHASE3_CLEAN")
                         end
                         
                         -- Recursively add this material
@@ -473,7 +473,7 @@ return function(deps)
         end
         
         -- PHASE 3: Use dependencies exclusively (no external data needed)
-        log("PHASE3: Starting clean recipe tree build (dependencies only)", "PHASE3_CLEAN")
+        --log("PHASE3: Starting clean recipe tree build (dependencies only)", "PHASE3_CLEAN")
         addItemToTier(targetItem, 1, 0, nil)
         
         -- Function to check if an item has actual children in the recipe data
@@ -507,7 +507,7 @@ return function(deps)
             return false
         end
         
-        log("Built simple recipe data with " .. #recipeData .. " items", "RECIPE_DISPLAY")
+        --log("Built simple recipe data with " .. #recipeData .. " items", "RECIPE_DISPLAY")
         
         -- Calculate initial total labor cost
         --log("=== CALCULATING INITIAL TOTAL LABOR ===", "INITIAL_LABOR")
@@ -544,7 +544,7 @@ return function(deps)
                     local baseLabor = item.laborCost or 0
                     local amount = item.amount or 1
                     itemLabor = baseLabor * amount
-                    log("PHASE3.6: Labor calc using existing data for " .. item.name .. " - labor=" .. itemLabor, "PHASE3_FINAL")
+                    --log("PHASE3.6: Labor calc using existing data for " .. item.name .. " - labor=" .. itemLabor, "PHASE3_FINAL")
                 end
                 initialTotalLabor = initialTotalLabor + itemLabor
                 --log("Item " .. item.name .. " (tier " .. item.tier .. ") - labor=" .. itemLabor, "INITIAL_LABOR")
@@ -552,7 +552,7 @@ return function(deps)
         end
         
         -- Calculate initial total cost (materials)
-        log("=== CALCULATING INITIAL TOTAL COST ===", "INITIAL_COST")
+        --log("=== CALCULATING INITIAL TOTAL COST ===", "INITIAL_COST")
         local initialTotalCost = 0
         
         -- Sum up all material costs from all items (initially all are craft since buy defaults to false)
@@ -586,14 +586,14 @@ return function(deps)
                     local marketPrice = marketdata[item.id] and marketdata[item.id].average or 0
                     local amount = item.amount or 1
                     itemCost = marketPrice * amount
-                    log("COST CALC: Buying " .. item.name .. " - cost=" .. itemCost .. " (price=" .. marketPrice .. ", amount=" .. amount .. ")", "INITIAL_COST")
+                    --log("COST CALC: Buying " .. item.name .. " - cost=" .. itemCost .. " (price=" .. marketPrice .. ", amount=" .. amount .. ")", "INITIAL_COST")
                 end
                 initialTotalCost = initialTotalCost + itemCost
                 --log("Item " .. item.name .. " (tier " .. item.tier .. ") - cost=" .. itemCost, "INITIAL_COST")
             end
         end
         
-        log("Initial total cost: " .. initialTotalCost, "INITIAL_COST")
+        --log("Initial total cost: " .. initialTotalCost, "INITIAL_COST")
         
         -- Set the total labor and cost on the main item (tier 0)
         for i, item in ipairs(recipeData) do
@@ -601,7 +601,7 @@ return function(deps)
                 item.totalLaborCost = initialTotalLabor
                 item.totalMaterialCost = initialTotalCost
                 --log("Set initial tier 0 total labor cost to: " .. initialTotalLabor, "INITIAL_LABOR")
-                log("Set initial tier 0 total material cost to: " .. initialTotalCost, "INITIAL_COST")
+                --log("Set initial tier 0 total material cost to: " .. initialTotalCost, "INITIAL_COST")
                 break
             end
         end
@@ -796,8 +796,8 @@ return function(deps)
                                 --log("=== SEARCHING FOR ITEM IN RECIPEDATA ===", "BUY_CRAFT_PHASE2")
                                 for i, originalItem in ipairs(recipeData) do
                                     if originalItem.id == self.itemData.id and originalItem.tier == self.itemData.tier then
-                                        log("Found original item at index " .. i, "BUY_CRAFT_PHASE2")
-                                        log("Original buy status: " .. tostring(originalItem.buy), "BUY_CRAFT_PHASE2")
+                                        --log("Found original item at index " .. i, "BUY_CRAFT_PHASE2")
+                                        --log("Original buy status: " .. tostring(originalItem.buy), "BUY_CRAFT_PHASE2")
                                         
                                         -- Toggle the buy status
                                         originalItem.buy = not originalItem.buy
@@ -810,37 +810,37 @@ return function(deps)
                                             -- If buying, set labor cost to 0 (not crafting it)
                                             originalItem.displayLaborCost = 0
                                             self.itemData.laborCost = 0
-                                            log("Item marked as BUY - labor cost set to 0", "BUY_CRAFT_PHASE2")
+                                            --log("Item marked as BUY - labor cost set to 0", "BUY_CRAFT_PHASE2")
                                         else
                                             -- If crafting, restore original labor cost
                                             originalItem.displayLaborCost = originalItem.laborCost or 0
                                             self.itemData.laborCost = originalItem.laborCost or 0
-                                            log("Item marked as CRAFT - labor cost restored to " .. (originalItem.laborCost or 0), "BUY_CRAFT_PHASE2")
+                                            --log("Item marked as CRAFT - labor cost restored to " .. (originalItem.laborCost or 0), "BUY_CRAFT_PHASE2")
                                         end
                                         
-                                        log("New buy status: " .. tostring(originalItem.buy), "BUY_CRAFT_PHASE2")
-                                        log("Updated itemData buy status: " .. tostring(self.itemData.buy), "BUY_CRAFT_PHASE2")
-                                        log("Updated labor cost: " .. (originalItem.displayLaborCost or 0), "BUY_CRAFT_PHASE2")
-                                        log("=== BUY STATUS TOGGLE COMPLETE ===", "BUY_CRAFT_PHASE2")
+                                        --log("New buy status: " .. tostring(originalItem.buy), "BUY_CRAFT_PHASE2")
+                                        --log("Updated itemData buy status: " .. tostring(self.itemData.buy), "BUY_CRAFT_PHASE2")
+                                        --log("Updated labor cost: " .. (originalItem.displayLaborCost or 0), "BUY_CRAFT_PHASE2")
+                                        --log("=== BUY STATUS TOGGLE COMPLETE ===", "BUY_CRAFT_PHASE2")
                                         
                                         -- CASCADE Phase 1: Handle visual collapse when parent is marked as buy
                                         if originalItem.buy then
-                                            log("=== VISUAL COLLAPSE - PARENT MARKED AS BUY ===", "CASCADE_PHASE1")
-                                            log("Parent item " .. originalItem.name .. " marked as BUY - collapsing for display only", "CASCADE_PHASE1")
+                                            --log("=== VISUAL COLLAPSE - PARENT MARKED AS BUY ===", "CASCADE_PHASE1")
+                                            --log("Parent item " .. originalItem.name .. " marked as BUY - collapsing for display only", "CASCADE_PHASE1")
                                             
                                             -- Collapse the parent item visually since its children are less relevant for display
                                             originalItem.expanded = false
-                                            log("Collapsed parent item: " .. originalItem.name .. " (children keep their buy states)", "CASCADE_PHASE1")
+                                            --log("Collapsed parent item: " .. originalItem.name .. " (children keep their buy states)", "CASCADE_PHASE1")
                                             
-                                            log("=== VISUAL COLLAPSE COMPLETE ===", "CASCADE_PHASE1")
+                                            --log("=== VISUAL COLLAPSE COMPLETE ===", "CASCADE_PHASE1")
                                         else
-                                            log("=== VISUAL EXPAND - PARENT MARKED AS CRAFT ===", "CASCADE_PHASE1") 
-                                            log("Parent item " .. originalItem.name .. " marked as CRAFT - expanding tree", "CASCADE_PHASE1")
+                                            --log("=== VISUAL EXPAND - PARENT MARKED AS CRAFT ===", "CASCADE_PHASE1") 
+                                            --log("Parent item " .. originalItem.name .. " marked as CRAFT - expanding tree", "CASCADE_PHASE1")
                                             
                                             -- When switching to craft, expand the item to show its recipe components
                                             originalItem.expanded = true
-                                            log("Expanded parent item: " .. originalItem.name, "CASCADE_PHASE1")
-                                            log("=== VISUAL EXPAND COMPLETE ===", "CASCADE_PHASE1")
+                                            --log("Expanded parent item: " .. originalItem.name, "CASCADE_PHASE1")
+                                            --log("=== VISUAL EXPAND COMPLETE ===", "CASCADE_PHASE1")
                                         end
                                         
                                         -- LABOR RECALC Phase: Recalculate total labor for tier 0 item
@@ -911,6 +911,23 @@ return function(deps)
                                                     totalLaborVauleLabel:SetText(tostring(totalLabor))
                                                 end
                                                 
+                                                
+                                                -- Save updated totalLaborCost back to main item list file
+                                                local existingItems = api.File:Read(config.files.itemList) or {}
+                                                for itemIndex, savedItem in ipairs(existingItems) do
+                                                    if savedItem.id == item.id then
+                                                        savedItem.totalLaborCost = totalLabor
+                                                        log("Updated main item list: " .. (savedItem.name or "unknown") .. " totalLaborCost=" .. totalLabor, "TOTAL_LABOR_SAVE")
+                                                        break
+                                                    end
+                                                end
+                                                
+                                                -- Save updated data back to file
+                                                api.File:Write(config.files.itemList, existingItems)
+                                                
+                                                -- Clear cache so main window will reload fresh data
+                                                cachedItemList = nil
+                                                
                                                 break
                                             end
                                         end
@@ -918,7 +935,7 @@ return function(deps)
                                         --log("=== LABOR RECALCULATION COMPLETE ===", "LABOR_RECALC")
                                         
                                         -- COST RECALC Phase: Recalculate total cost for tier 0 item
-                                        log("=== RECALCULATING TOTAL COST ===", "COST_RECALC")
+                                        --log("=== RECALCULATING TOTAL COST ===", "COST_RECALC")
                                         local totalCost = 0
                                         
                                         -- Sum up all material costs from items marked as "buy" (opposite of labor logic)
@@ -952,7 +969,7 @@ return function(deps)
                                                     local marketPrice = marketdata[item.id] and marketdata[item.id].average or 0
                                                     local amount = item.amount or 1
                                                     itemCost = marketPrice * amount
-                                                    log("COST RECALC: Adding cost for " .. item.name .. " - cost=" .. itemCost .. " (price=" .. marketPrice .. ", amount=" .. amount .. ")", "COST_RECALC")
+                                                    --log("COST RECALC: Adding cost for " .. item.name .. " - cost=" .. itemCost .. " (price=" .. marketPrice .. ", amount=" .. amount .. ")", "COST_RECALC")
                                                 end
                                                 totalCost = totalCost + itemCost
                                                 --log("Item " .. item.name .. " (tier " .. item.tier .. ") - cost=" .. itemCost, "COST_RECALC")
@@ -963,22 +980,22 @@ return function(deps)
                                         for k, item in ipairs(recipeData) do
                                             if item.tier == 0 then
                                                 item.totalMaterialCost = totalCost
-                                                log("Updated tier 0 total material cost to: " .. totalCost, "COST_RECALC")
+                                                --log("Updated tier 0 total material cost to: " .. totalCost, "COST_RECALC")
                                                 
                                                 -- Update the total cost value label
                                                 if totalCostValueLabel then
                                                     totalCostValueLabel:SetText(tostring(totalCost))
-                                                    log("Updated total cost label to: " .. totalCost, "COST_RECALC")
+                                                    --log("Updated total cost label to: " .. totalCost, "COST_RECALC")
                                                 end
                                                 
                                                 break
                                             end
                                         end
                                         
-                                        log("=== COST RECALCULATION COMPLETE ===", "COST_RECALC")
+                                        --log("=== COST RECALCULATION COMPLETE ===", "COST_RECALC")
                                         
                                         -- BUY/CRAFT Phase 3: Filter visible items and update display
-                                        log("=== FILTERING VISIBLE ITEMS AFTER CASCADE ===", "BUY_CRAFT_PHASE3")
+                                        --log("=== FILTERING VISIBLE ITEMS AFTER CASCADE ===", "BUY_CRAFT_PHASE3")
                                         local visibleData = {}
                                         
                                         for k, item in ipairs(recipeData) do
@@ -987,7 +1004,7 @@ return function(deps)
                                             if item.tier == 0 then
                                                 -- Always show main item (tier 0)
                                                 shouldShow = true
-                                                log("Tier 0 - Always show: " .. item.name, "BUY_CRAFT_PHASE3")
+                                                --log("Tier 0 - Always show: " .. item.name, "BUY_CRAFT_PHASE3")
                                             else
                                                 -- For child items, check if any ancestor in the lineage is collapsed
                                                 shouldShow = true
@@ -1008,13 +1025,13 @@ return function(deps)
                                                     -- If we found an ancestor at this tier and it's collapsed, hide this item
                                                     if ancestorAtTier and not ancestorAtTier.expanded then
                                                         shouldShow = false
-                                                        log("Hidden by collapsed ancestor: " .. item.name .. " (ancestor: " .. ancestorAtTier.name .. " at tier " .. checkTier .. ")", "BUY_CRAFT_PHASE3")
+                                                        --log("Hidden by collapsed ancestor: " .. item.name .. " (ancestor: " .. ancestorAtTier.name .. " at tier " .. checkTier .. ")", "BUY_CRAFT_PHASE3")
                                                         break
                                                     end
                                                 end
                                                 
                                                 if shouldShow then
-                                                    log("Tier " .. item.tier .. " - Show: " .. item.name, "BUY_CRAFT_PHASE3")
+                                                    --log("Tier " .. item.tier .. " - Show: " .. item.name, "BUY_CRAFT_PHASE3")
                                                 end
                                             end
                                             
@@ -1023,18 +1040,20 @@ return function(deps)
                                             end
                                         end
                                         
-                                        log("Total visible items: " .. #visibleData .. " out of " .. #recipeData, "BUY_CRAFT_PHASE3")
+                                        --log("Total visible items: " .. #visibleData .. " out of " .. #recipeData, "BUY_CRAFT_PHASE3")
                                         
                                         -- BUY/CRAFT Phase 4: Update display with filtered visible data
-                                        log("=== UPDATING DISPLAY AFTER CASCADE ===", "BUY_CRAFT_PHASE4")
+                                        --log("=== UPDATING DISPLAY AFTER CASCADE ===", "BUY_CRAFT_PHASE4")
                                         if recipeWindow and recipeWindow.itemList then
-                                            log("Refreshing scroll list with " .. #visibleData .. " visible items", "BUY_CRAFT_PHASE4")
+                                            --log("Refreshing scroll list with " .. #visibleData .. " visible items", "BUY_CRAFT_PHASE4")
                                             recipeWindow.itemList:UpdateData(visibleData)
-                                            log("Display update complete", "BUY_CRAFT_PHASE4")
+                                            --log("Display update complete", "BUY_CRAFT_PHASE4")
                                         else
-                                            log("ERROR: recipeWindow or itemList not found", "BUY_CRAFT_PHASE4")
+                                            --log("ERROR: recipeWindow or itemList not found", "BUY_CRAFT_PHASE4")
                                         end
-                                        log("=== DISPLAY UPDATE COMPLETE ===", "BUY_CRAFT_PHASE4")
+                                        --log("=== DISPLAY UPDATE COMPLETE ===", "BUY_CRAFT_PHASE4")
+                                        
+                                        -- Main window update now handled above with recipe window updates
                                         
                                         break
                                     end
@@ -1083,6 +1102,126 @@ return function(deps)
                             else
                                 subItem:SetText(rowData.buy and "0 (BUY)" or "")  -- Show why it's 0
                                 ApplyTextColor(subItem, rowData.buy and FONT_COLOR.GREEN or FONT_COLOR.DEFAULT)
+                            end
+                        end
+                    end
+                end
+            },
+            {
+                name = "Silver/Labor",
+                width = 120,
+                setFunc = function(subItem, rowData, setValue)
+                    if setValue then
+                        -- Only calculate for items marked as craft
+                        if not rowData.buy then
+                            -- Step 1: Get market value for this item
+                            local marketValue = marketdata[rowData.id] and marketdata[rowData.id].average or 0
+                            
+                            -- Step 2: Calculate material costs by finding children in recipeData
+                            local materialCosts = 0
+                            
+                            -- Find this item's position in recipeData
+                            local currentIndex = nil
+                            for i, item in ipairs(recipeData) do
+                                if item.id == rowData.id and item.tier == rowData.tier then
+                                    currentIndex = i
+                                    break
+                                end
+                            end
+                            
+                            if currentIndex then
+                                -- Phase 1: Track children found for debugging
+                                local childrenFound = 0
+                                local buyChildren = 0
+                                local craftChildren = 0
+                                
+                                -- Look for immediate children (tier + 1)
+                                for j = currentIndex + 1, #recipeData do
+                                    local child = recipeData[j]
+                                    
+                                    -- Stop if we hit an item at same or lower tier (not a child)
+                                    if child.tier <= rowData.tier then
+                                        break
+                                    end
+                                    
+                                    -- Only count direct children (tier + 1)
+                                    if child.tier == (rowData.tier + 1) then
+                                        childrenFound = childrenFound + 1
+                                        
+                                        if child.buy then
+                                            buyChildren = buyChildren + 1
+                                            -- Child is bought - add market cost
+                                            local childMarketPrice = marketdata[child.id] and marketdata[child.id].average or 0
+                                            local childAmount = child.amount or 1
+                                            local childCost = childMarketPrice * childAmount
+                                            materialCosts = materialCosts + childCost
+                                        else
+                                            craftChildren = craftChildren + 1
+                                            -- Crafted children cost=0 for now (Phase 1 limitation)
+                                        end
+                                    end
+                                end
+                                
+                                -- Phase 1: Log child discovery results (only for tier 0 to reduce spam)
+                                if rowData.tier == 0 and childrenFound > 0 then
+                                    log("PHASE1: " .. (rowData.name or "unknown") .. " found " .. childrenFound .. " children (" .. buyChildren .. " buy, " .. craftChildren .. " craft)", "SILVER_LABOR_PHASE1")
+                                end
+                            end
+                            
+                            -- Step 3: Calculate profit and Silver/Labor
+                            local profit = marketValue - materialCosts
+                            local laborCost = rowData.laborCost or 0
+                            
+                            -- Debug only once per unique item (reduced logging)
+                            if rowData.tier == 0 then
+                                log("Silver/Labor calc: " .. (rowData.name or "unknown") .. " marketValue=" .. marketValue .. " materialCosts=" .. materialCosts .. " profit=" .. profit .. " labor=" .. laborCost .. " result=" .. (laborCost > 0 and format4(profit / laborCost) or "N/A"), "SILVER_LABOR")
+                            end
+                            
+                            if laborCost > 0 then
+                                local silverPerLabor = profit / laborCost
+                                subItem:SetText(format4(silverPerLabor))
+                                ApplyTextColor(subItem, FONT_COLOR.DEFAULT)
+                            else
+                                subItem:SetText("N/A")
+                                ApplyTextColor(subItem, FONT_COLOR.GRAY)
+                            end
+                        else
+                            -- For items marked as buy, show N/A
+                            subItem:SetText("N/A (BUY)")
+                            ApplyTextColor(subItem, FONT_COLOR.GREEN)
+                        end
+                    end
+                end
+            },
+            {
+                name = "Cost",
+                width = 80,
+                setFunc = function(subItem, rowData, setValue)
+                    if setValue then
+                        --log("PHASE2: Adding Cost column for " .. rowData.name, "PHASE2_COST_COLUMN")
+                        if rowData.tier == 0 then
+                            -- For tier 0, show individual market cost (if buying)
+                            if rowData.buy then
+                                local marketPrice = marketdata[rowData.id] and marketdata[rowData.id].average or 0
+                                local amount = rowData.amount or 1
+                                local totalCost = marketPrice * amount
+                                subItem:SetText(tostring(totalCost))
+                                ApplyTextColor(subItem, FONT_COLOR.GREEN)
+                            else
+                                subItem:SetText("0 (CRAFT)")
+                                ApplyTextColor(subItem, FONT_COLOR.DEFAULT)
+                            end
+                        else
+                            -- For other items, show market price * amount if buying
+                            if rowData.buy then
+                                local marketPrice = marketdata[rowData.id] and marketdata[rowData.id].average or 0
+                                local amount = rowData.amount or 1
+                                local totalCost = marketPrice * amount
+                                subItem:SetText(tostring(totalCost))
+                                ApplyTextColor(subItem, FONT_COLOR.GREEN)
+                            else
+                                subItem:SetText("0 (CRAFT)")
+                                ApplyTextColor(subItem, FONT_COLOR.DEFAULT)
                             end
                         end
                     end
@@ -1154,7 +1293,7 @@ return function(deps)
         recipeWindow.itemList = gui.AddScrollList(
             recipeWindow, "recipeList", columns,
             { point = "TOPLEFT", relativeTo = recipeWindow, offsetX = 20, offsetY = 70 },
-            { width = 760, height = 400 },
+            { width = 840, height = 400 },
             {
                 listType = 3,
                 rowCount = 20,
@@ -1168,12 +1307,12 @@ return function(deps)
         -- Update the list with our data
         if recipeWindow.itemList then
             recipeWindow.itemList:UpdateData(recipeData)
-            log("Scroll list created and data updated successfully", "RECIPE_DISPLAY")
+            --log("Scroll list created and data updated successfully", "RECIPE_DISPLAY")
         else
-            log("ERROR: Failed to create scroll list", "RECIPE_DISPLAY")
+            --log("ERROR: Failed to create scroll list", "RECIPE_DISPLAY")
         end
         
-        log("Created recipe window with " .. #recipeData .. " items", "RECIPE_DISPLAY")
+        --log("Created recipe window with " .. #recipeData .. " items", "RECIPE_DISPLAY")
     end
 
     -- Helper function to count table entries
@@ -1235,14 +1374,22 @@ return function(deps)
                 value = value,
                 profit = profit,
                 laborCost = item.laborCost or 0,
+                totalLaborCost = item.totalLaborCost or 0,  -- Add missing totalLaborCost property
                 workbench = item.workbench or "Default",
                 materials = item.materials,  -- Recipe-specific materials with buy/craft preferences
                 dependencies = item.dependencies  -- Complete dependency tree
             }
             
             -- Calculate Silver per Labor if we have both values
-            if processedItem.profit and processedItem.laborCost and processedItem.laborCost > 0 then
-                processedItem.silverPerLabor = processedItem.profit / processedItem.laborCost
+            -- Use totalLaborCost if available (more accurate), otherwise fall back to laborCost
+            local laborForCalculation = processedItem.totalLaborCost or processedItem.laborCost or 0
+            if processedItem.profit and laborForCalculation > 0 then
+                processedItem.silverPerLabor = processedItem.profit / laborForCalculation
+                
+                -- Debug logging to verify the change
+                if processedItem.totalLaborCost and processedItem.totalLaborCost ~= processedItem.laborCost then
+                    log("Main window Silver/Labor: " .. (processedItem.name or "unknown") .. " using total labor=" .. laborForCalculation .. " (was individual=" .. (processedItem.laborCost or 0) .. ") result=" .. format4(processedItem.silverPerLabor), "MAIN_SILVER_LABOR_UPDATE")
+                end
             else
                 processedItem.silverPerLabor = 0
             end
@@ -1380,7 +1527,7 @@ return function(deps)
             if string.find(craftBaseInfo.title, "Mass Production") then
                 isMassProduction = true
                 massProductionRatio = 10  -- All mass production recipes use 10:1 ratio
-                log("Mass production detected for " .. itemInfo.name .. ": " .. craftBaseInfo.title, "MASS_PROD")
+                --log("Mass production detected for " .. itemInfo.name .. ": " .. craftBaseInfo.title, "MASS_PROD")
             end
         end
         
@@ -1407,7 +1554,7 @@ return function(deps)
                     local adjustedAmount = matData.amount
                     if isMassProduction then
                         adjustedAmount = matData.amount / massProductionRatio
-                        log("Adjusted " .. matName .. " amount: " .. matData.amount .. " -> " .. adjustedAmount .. " (÷" .. massProductionRatio .. ")", "MASS_PROD")
+                        --log("Adjusted " .. matName .. " amount: " .. matData.amount .. " -> " .. adjustedAmount .. " (÷" .. massProductionRatio .. ")", "MASS_PROD")
                     end
                     
                     -- "Material " .. i .. ": " .. matName .. " (ID: " .. matId .. ", amount: " .. adjustedAmount .. ")", "TREE")
@@ -1435,7 +1582,7 @@ return function(deps)
             local adjustedLaborCost = craftBaseInfo and craftBaseInfo.consume_lp or 0
             if isMassProduction then
                 adjustedLaborCost = adjustedLaborCost / massProductionRatio
-                log("Adjusted " .. itemInfo.name .. " labor cost: " .. (craftBaseInfo.consume_lp or 0) .. " -> " .. adjustedLaborCost .. " (÷" .. massProductionRatio .. ")", "MASS_PROD")
+                --log("Adjusted " .. itemInfo.name .. " labor cost: " .. (craftBaseInfo.consume_lp or 0) .. " -> " .. adjustedLaborCost .. " (÷" .. massProductionRatio .. ")", "MASS_PROD")
             end
             
             -- Store recipe data for craftable items
@@ -1536,12 +1683,13 @@ end
             -- log("ERROR: CalculateFromDependencyTree returned nil for item " .. itemId, "ADD_ITEM_DEBUG")
             return false
         end
-        -- log("Calculated costs for " .. mainItemData.name .. ": cost=" .. (calculatedData.cost or 0) .. ", labor=" .. (calculatedData.laborCost or 0), "ADD_ITEM_DEBUG")
+        log("AddItemToList: " .. mainItemData.name .. " - individual labor=" .. (mainItemData.laborCost or 0) .. " total labor=" .. (calculatedData and calculatedData.laborCost or 0), "TOTAL_LABOR_DEBUG")
         
         -- Build complete item record with recipe-specific buy/craft preferences
         local fileFriendlyItem = {
             -- Basic item info
             laborCost = mainItemData.laborCost or 0,  -- Store base craft cost, not total recipe cost
+            totalLaborCost = calculatedData and calculatedData.laborCost or 0,  -- Store total recursive labor cost
             name = mainItemData.name,
             cost = calculatedData and calculatedData.cost or 0,
             id = tonumber(string.format("%.0f", itemId)),
@@ -1642,7 +1790,14 @@ end
                 width = 80,
                 setFunc = function(subItem, rowData, setValue)
                     if setValue then
-                        subItem:SetText(tostring(rowData.laborCost or 0))
+                        -- Use totalLaborCost if available (includes all crafted children), otherwise fall back to laborCost
+                        local displayLabor = rowData.totalLaborCost or rowData.laborCost or 0
+                        subItem:SetText(tostring(displayLabor))
+                        
+                        -- Debug logging to verify the change
+                        if rowData.totalLaborCost and rowData.totalLaborCost ~= rowData.laborCost then
+                            log("Main window Labor: " .. (rowData.name or "unknown") .. " showing total=" .. displayLabor .. " (was individual=" .. (rowData.laborCost or 0) .. ")", "MAIN_LABOR_UPDATE")
+                        end
                     end
                 end
             },
@@ -1704,8 +1859,8 @@ end
                         local data = itemList.dataSource[self.rowIndex]
                         if not data then return end
                         
-                        log("Edit button clicked for row " .. data.id .. " - " .. data.name, "EDIT_BUTTON")
-                        log("PHASE3.5: Passing item data to DisplayRecipeTree - no file read needed!", "PHASE3_FINAL")
+                        --log("Edit button clicked for row " .. data.id .. " - " .. data.name, "EDIT_BUTTON")
+                        --log("PHASE3.5: Passing item data to DisplayRecipeTree - no file read needed!", "PHASE3_FINAL")
                         -- Call DisplayRecipeTree function with item data (no API calls!)
                         DisplayRecipeTree(data.id, data)
                     end
@@ -1726,7 +1881,7 @@ end
                         if self.rowIndex > 1 then
                             local data = itemList.dataSource[self.rowIndex]
                             if data then
-                                log("Moving up: " .. data.name .. " from row " .. self.rowIndex .. " to " .. (self.rowIndex - 1), "MOVE_BUTTONS")
+                                --log("Moving up: " .. data.name .. " from row " .. self.rowIndex .. " to " .. (self.rowIndex - 1), "MOVE_BUTTONS")
                                 itemList:SwapRows(self.rowIndex, self.rowIndex - 1)
                             end
                         end
@@ -1748,7 +1903,7 @@ end
                         if self.rowIndex < dataCount then
                             local data = itemList.dataSource[self.rowIndex]
                             if data then
-                                log("Moving down: " .. data.name .. " from row " .. self.rowIndex .. " to " .. (self.rowIndex + 1), "MOVE_BUTTONS")
+                                --log("Moving down: " .. data.name .. " from row " .. self.rowIndex .. " to " .. (self.rowIndex + 1), "MOVE_BUTTONS")
                                 itemList:SwapRows(self.rowIndex, self.rowIndex + 1)
                             end
                         end
@@ -1776,7 +1931,7 @@ end
                 offsetY = listoffsety or 30
             },
             {                                    -- dimensions
-                width = 1360,                    -- fixed width that fits in 1400px window
+                width = 1480,                    -- increased width for Silver/Labor column (+120px)
                 height = 400                     -- fixed height
             },
             {                                    -- options
@@ -2059,16 +2214,16 @@ end
             100, 0,                         -- x offset, y offset
             nil,                           -- skin (default)
             function(buttonSelf)           -- onClick handler
-               log("We clicked the Update Market button", "UPDATE_MARKET")
+               --log("We clicked the Update Market button", "UPDATE_MARKET")
                
                -- Use cached market data for now
-               log("Using current market data", "UPDATE_MARKET")
+               --log("Using current market data", "UPDATE_MARKET")
                local freshMarketData = marketdata
                
                -- Read current item list
                local existingData = api.File:Read(config.files.itemList) or {}
                if not existingData or #existingData == 0 then
-                   log("No items found in list to update", "UPDATE_MARKET")
+                   --log("No items found in list to update", "UPDATE_MARKET")
                    return
                end
                
@@ -2085,7 +2240,7 @@ end
                        item.profit = newProfit
                        
                        updatedCount = updatedCount + 1
-                       log("Updated " .. item.name .. " - Cost: " .. string.format("%.4f", newCost) .. ", Value: " .. string.format("%.4f", newValue) .. ", Profit: " .. string.format("%.4f", newProfit), "UPDATE_MARKET")
+                       --log("Updated " .. item.name .. " - Cost: " .. string.format("%.4f", newCost) .. ", Value: " .. string.format("%.4f", newValue) .. ", Profit: " .. string.format("%.4f", newProfit), "UPDATE_MARKET")
                    end
                end
                
@@ -2102,7 +2257,7 @@ end
                        mainWindow.itemList:UpdateData(newItemData)
                    end
                    
-                   log("Successfully updated " .. updatedCount .. " items and refreshed UI", "UPDATE_MARKET")
+                   --log("Successfully updated " .. updatedCount .. " items and refreshed UI", "UPDATE_MARKET")
                end
             end,
             100, 25                        -- width, height

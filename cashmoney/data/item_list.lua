@@ -2,7 +2,7 @@
     {
         laborCost = 20,
         cost = 250.901,
-        id = 16325,
+        totalLaborCost = 850,
         profit = 75.7818,
         name = "Sunridge Ingot",
         value = 326.683,
@@ -32,20 +32,6 @@
                     },
                 },
                 workbench = "Alchemy Table",
-            },
-            id_8318 = {
-                laborCost = 5,
-                name = "Iron Ingot",
-                id = 8318,
-                materials = {
-                    id_8022 = {
-                        id = 8022,
-                        buy = false,
-                        name = "Iron Ore",
-                        amount = 3,
-                    },
-                },
-                workbench = "Smelter",
             },
             id_19410 = {
                 laborCost = 30,
@@ -79,6 +65,14 @@
                 },
                 workbench = "Alchemy Table",
             },
+            id_3545 = {
+                laborCost = 0,
+                name = "Oats",
+                id = 3545,
+                materials = {
+                },
+                workbench = "Raw Material",
+            },
             id_17774 = {
                 laborCost = 10,
                 name = "Silver Ingot",
@@ -93,13 +87,19 @@
                 },
                 workbench = "Smelter",
             },
-            id_3545 = {
-                laborCost = 0,
-                name = "Oats",
-                id = 3545,
+            id_8318 = {
+                laborCost = 5,
+                name = "Iron Ingot",
+                id = 8318,
                 materials = {
+                    id_8022 = {
+                        id = 8022,
+                        buy = false,
+                        name = "Iron Ore",
+                        amount = 3,
+                    },
                 },
-                workbench = "Raw Material",
+                workbench = "Smelter",
             },
             id_23653 = {
                 laborCost = 0,
@@ -128,16 +128,16 @@
                         name = "Iron Ingot",
                         amount = 8,
                     },
-                    id_19450 = {
-                        id = 19450,
-                        buy = false,
-                        name = "Opaque Polish",
-                        amount = 1,
-                    },
                     id_17774 = {
                         id = 17774,
                         buy = false,
                         name = "Silver Ingot",
+                        amount = 1,
+                    },
+                    id_19450 = {
+                        id = 19450,
+                        buy = false,
+                        name = "Opaque Polish",
                         amount = 1,
                     },
                     id_8320 = {
@@ -241,5 +241,6 @@
             },
         },
         workbench = "Smelter",
+        id = 16325,
     },
 }
