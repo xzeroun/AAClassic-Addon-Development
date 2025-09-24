@@ -1347,6 +1347,12 @@ return function(deps)
                                 -- Get market price
                                 local marketPrice = marketdata[itemId] and marketdata[itemId].average or 0
                                 
+                                -- If item is marked as buy, return its market cost (don't recurse into children)
+                                if itemData.buy then
+                                    visited[itemId] = nil
+                                    return marketPrice * quantity
+                                end
+                                
                                 -- Check if item has materials (raw material check)
                                 local hasMaterials = false
                                 if itemData.materials and type(itemData.materials) == "table" then
@@ -1463,6 +1469,12 @@ return function(deps)
                                 end
                                 
                                 local marketPrice = marketdata[itemId] and marketdata[itemId].average or 0
+                                
+                                -- If item is marked as buy, return its market cost (don't recurse into children)
+                                if itemData.buy then
+                                    visited[itemId] = nil
+                                    return marketPrice * quantity
+                                end
                                 
                                 -- Check if raw material
                                 local hasMaterials = false
